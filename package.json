@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply smoke-signal --local",
+    "migrate:remote": "wrangler d1 migrations apply smoke-signal --remote",
     "test": "vitest run",
     "test:watch": "vitest",
     "cf-typegen": "wrangler types",

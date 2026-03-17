@@ -35,7 +35,7 @@ export function renderUI(): string {
     input, select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.875rem; width: 100%; }
     input:focus, select:focus { outline: 2px solid #2563eb; border-color: transparent; }
     .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; margin-top: 0.25rem; }
-    .empty { color: #999; font-size: 0.875rem; padding: 1rem 0; }
+    .empty { color: #999; font-size: 0.875rem; padding: 1.25rem 0.75rem; text-align: center; }
     .tag { display: inline-block; background: #e0f2fe; color: #0369a1; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.75rem; }
     #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1e293b; color: #fff; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.875rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
     #toast.show { opacity: 1; }
@@ -46,11 +46,14 @@ export function renderUI(): string {
     .ac-item:hover, .ac-item.ac-active { background: #eff6ff; }
     .ac-sub { color: #888; font-size: 0.75rem; }
     .ac-other { color: #666; font-style: italic; border-top: 1px solid #eee; margin-top: 2px; }
+    .notify-checks { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.1rem; }
+    .notify-checks label { display: flex; align-items: center; gap: 0.4rem; font-weight: 400; color: #333; cursor: pointer; }
+    .notify-checks input[type=checkbox] { width: auto; }
     .ac-selected { background: #eff6ff; border-color: #2563eb; }
   </style>
 </head>
 <body>
-  <h1>🏕 smoke-signal</h1>
+  <h1>🏕️ smoke-signal</h1>
   <p class="subtitle">Campsite availability watchdog</p>
 
   <div class="status-bar" id="status-bar">
@@ -119,7 +122,7 @@ export function renderUI(): string {
         <th>Facility</th>
         <th>Target Date</th>
         <th>Window Opens</th>
-        <th>Alert Before</th>
+        <th>Notifications</th>
         <th></th>
       </tr>
     </thead>
@@ -153,10 +156,17 @@ export function renderUI(): string {
         <div class="form-group">
           <label for="r_window_months">Booking Window (months)</label>
           <input id="r_window_months" name="window_months" type="number" min="1" value="6" />
+          <small style="color:#888">Most federal campgrounds: 6 months. Yosemite valley: 5 months.</small>
         </div>
-        <div class="form-group">
-          <label for="r_remind_days">Alert N Days Before Window Opens</label>
-          <input id="r_remind_days" name="remind_days_before" type="number" min="0" value="3" />
+        <div class="form-group full">
+          <label>Notify me…</label>
+          <div class="notify-checks">
+            <label><input type="checkbox" name="notify_1day" checked> 1 day before window opens</label>
+            <label><input type="checkbox" name="notify_1hr" checked> 1 hour before window opens</label>
+            <label><input type="checkbox" name="notify_15min" checked> 15 minutes before window opens</label>
+            <label><input type="checkbox" name="notify_open" checked> At opening — 7 AM Mountain Time</label>
+          </div>
+          <small style="color:#888">Reservations open at 7 AM Mountain Time on the window date.</small>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">Add Reminder</button>
@@ -367,15 +377,23 @@ export function renderUI(): string {
         body.innerHTML = '<tr><td colspan="5" class="empty">No pending reminders</td></tr>';
         return;
       }
+      const OFFSET_LABELS = { '-1440': '1d', '-60': '1h', '-15': '15m', '0': 'open' };
       body.innerHTML = reminders.map(r => {
         const windowDate = new Date(r.target_date + 'T00:00:00Z');
         windowDate.setUTCMonth(windowDate.getUTCMonth() - r.window_months);
         const windowFmt = windowDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        const schedule = JSON.parse(r.notify_schedule || '[-4320,-1440,-60,0]');
+        const notifiedAt = JSON.parse(r.notified_at || '[]');
+        const scheduleHtml = schedule.map(o => {
+          const label = OFFSET_LABELS[String(o)] || String(o);
+          const done = notifiedAt.includes(o);
+          return \`<span class="tag" style="\${done ? 'opacity:0.4;text-decoration:line-through' : ''}">\${label}</span>\`;
+        }).join(' ');
         return \`<tr>
           <td><strong>\${r.facility_name || r.facility_id}</strong></td>
           <td>\${fmt(r.target_date)} (\${r.nights}n)</td>
           <td>\${windowFmt}</td>
-          <td>\${r.remind_days_before} days</td>
+          <td>\${scheduleHtml}</td>
           <td><button class="btn btn-danger" onclick="deleteReminder(\${r.id})">Remove</button></td>
         </tr>\`;
       }).join('');
@@ -424,12 +442,18 @@ export function renderUI(): string {
       const facility = reminderAc.resolve('r_custom_facility_id');
       if (!facility || !facility.facility_id) { toast('Select a campground', true); return; }
       const fd = new FormData(e.target);
+      const notify_schedule = [
+        fd.get('notify_1day')  ? -1440 : null,
+        fd.get('notify_1hr')   ? -60   : null,
+        fd.get('notify_15min') ? -15   : null,
+        fd.get('notify_open')  ? 0     : null,
+      ].filter(v => v !== null);
       const body = {
         ...facility,
         target_date: fd.get('target_date'),
         nights: Number(fd.get('nights')),
         window_months: Number(fd.get('window_months')),
-        remind_days_before: Number(fd.get('remind_days_before')),
+        notify_schedule,
       };
       const res = await fetch('/api/reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (res.ok) {

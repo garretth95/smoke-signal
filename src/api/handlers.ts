@@ -72,9 +72,13 @@ export async function getWatchHistory(c: Context<{ Bindings: Env }>) {
 
 // --- Reminders ---
 
+const DEFAULT_NOTIFY_SCHEDULE = [-1440, -60, -15, 0];
+
 export async function listReminders(c: Context<{ Bindings: Env }>) {
   const result = await c.env.DB.prepare(
-    "SELECT * FROM reminders WHERE notified = 0 ORDER BY target_date ASC"
+    `SELECT * FROM reminders
+     WHERE json_array_length(notified_at) < json_array_length(notify_schedule)
+     ORDER BY target_date ASC`
   ).all();
   return c.json(result.results);
 }
@@ -86,16 +90,18 @@ export async function createReminder(c: Context<{ Bindings: Env }>) {
     target_date: string;
     nights?: number;
     window_months?: number;
-    remind_days_before?: number;
+    notify_schedule?: number[];
   }>();
 
   if (!body.facility_id || !body.target_date) {
     return c.json({ error: "facility_id and target_date are required" }, 400);
   }
 
+  const notifySchedule = body.notify_schedule ?? DEFAULT_NOTIFY_SCHEDULE;
+
   const result = await c.env.DB.prepare(
-    `INSERT INTO reminders (facility_id, facility_name, target_date, nights, window_months, remind_days_before)
-     VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO reminders (facility_id, facility_name, target_date, nights, window_months, notify_schedule, notified_at)
+     VALUES (?, ?, ?, ?, ?, ?, '[]')
      RETURNING *`
   )
     .bind(
@@ -104,7 +110,7 @@ export async function createReminder(c: Context<{ Bindings: Env }>) {
       body.target_date,
       body.nights ?? 1,
       body.window_months ?? 6,
-      body.remind_days_before ?? 3
+      JSON.stringify(notifySchedule)
     )
     .first();
 

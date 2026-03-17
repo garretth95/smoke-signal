@@ -22,6 +22,19 @@ export interface AvailabilitySnapshot {
   status: string;
 }
 
+export interface Reminder {
+  id: number;
+  provider: string;
+  facility_id: string;
+  facility_name: string | null;
+  target_date: string;
+  nights: number;
+  window_months: number;
+  notify_schedule: string; // JSON array of minute offsets e.g. [-4320,-1440,-60,0]
+  notified_at: string; // JSON array of offsets already fired
+  created_at: string;
+}
+
 export interface NotificationLogEntry {
   watch_id: number;
   campsite_id: string;
@@ -94,6 +107,28 @@ export async function wasRecentlyNotified(
     .bind(watchId, campsiteId, checkDate)
     .first();
   return result !== null;
+}
+
+export async function getActiveReminders(db: D1Database): Promise<Reminder[]> {
+  const result = await db
+    .prepare(
+      `SELECT * FROM reminders
+       WHERE json_array_length(notified_at) < json_array_length(notify_schedule)
+       ORDER BY target_date ASC`
+    )
+    .all<Reminder>();
+  return result.results;
+}
+
+export async function markReminderNotified(
+  db: D1Database,
+  id: number,
+  notifiedAt: number[]
+): Promise<void> {
+  await db
+    .prepare("UPDATE reminders SET notified_at = ? WHERE id = ?")
+    .bind(JSON.stringify(notifiedAt), id)
+    .run();
 }
 
 export async function logNotification(db: D1Database, entry: NotificationLogEntry): Promise<void> {

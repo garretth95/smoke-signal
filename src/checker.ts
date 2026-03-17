@@ -7,6 +7,8 @@ import {
   upsertSnapshots,
   wasRecentlyNotified,
   logNotification,
+  getActiveReminders,
+  markReminderNotified,
   type Watch,
 } from "./db/queries";
 
@@ -86,6 +88,115 @@ function formatDateDisplay(isoDate: string): string {
     year: "numeric",
     timeZone: "UTC",
   });
+}
+
+/**
+ * Compute the UTC timestamp when a booking window opens (7 AM Mountain Time).
+ * Handles DST automatically via Intl.
+ */
+function windowOpenUTC(targetDate: string, windowMonths: number): Date {
+  const d = new Date(targetDate + "T00:00:00Z");
+  d.setUTCMonth(d.getUTCMonth() - windowMonths);
+
+  // Start with 7 AM MST (UTC-7) = 14:00 UTC
+  const attempt = new Date(d);
+  attempt.setUTCHours(14, 0, 0, 0);
+
+  // If it's MDT (UTC-6), 14:00 UTC = 8 AM Mountain — adjust back 1 hour
+  const mountainHour = parseInt(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Denver",
+      hour: "numeric",
+      hour12: false,
+    }).format(attempt)
+  );
+  attempt.setUTCHours(attempt.getUTCHours() - (mountainHour - 7));
+  return attempt;
+}
+
+function reminderLabel(offsetMinutes: number): string {
+  if (offsetMinutes === 0) return "at opening";
+  const abs = Math.abs(offsetMinutes);
+  if (abs >= 1440) return `${Math.round(abs / 1440)} day${abs >= 2880 ? "s" : ""} before`;
+  if (abs >= 60) return `${Math.round(abs / 60)} hour before`;
+  return `${abs} minutes before`;
+}
+
+function buildReminderMessage(
+  facilityName: string | null,
+  facilityId: string,
+  targetDate: string,
+  nights: number,
+  offsetMinutes: number,
+  windowOpen: Date
+): { title: string; body: string } {
+  const facility = facilityName ?? facilityId;
+  const stay = `${formatDateDisplay(targetDate)}${nights > 1 ? ` (${nights} nights)` : ""}`;
+  const windowDateStr = windowOpen.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/Denver",
+  });
+
+  if (offsetMinutes === 0) {
+    return {
+      title: `Book now — ${facility}`,
+      body: `Booking window just opened for ${stay}. Book before it fills up!`,
+    };
+  }
+
+  const label = reminderLabel(offsetMinutes);
+  return {
+    title: `Booking window opens ${label} — ${facility}`,
+    body: `Window opens ${windowDateStr} at 7 AM Mountain Time for ${stay}.`,
+  };
+}
+
+export async function runReminderChecks(env: Env, notifier: NotificationChannel): Promise<void> {
+  const reminders = await getActiveReminders(env.DB);
+  if (reminders.length === 0) return;
+
+  const now = Date.now();
+  const GRACE_MS = 30 * 60 * 1000; // ignore offsets missed by more than 30 minutes
+
+  for (const reminder of reminders) {
+    const windowOpen = windowOpenUTC(reminder.target_date, reminder.window_months);
+    const schedule = JSON.parse(reminder.notify_schedule) as number[];
+    const notifiedAt = JSON.parse(reminder.notified_at) as number[];
+
+    for (const offsetMinutes of schedule) {
+      if (notifiedAt.includes(offsetMinutes)) continue;
+
+      const fireAt = windowOpen.getTime() + offsetMinutes * 60 * 1000;
+      const elapsed = now - fireAt;
+      if (elapsed < 0 || elapsed >= GRACE_MS) continue;
+
+      const { title, body } = buildReminderMessage(
+        reminder.facility_name,
+        reminder.facility_id,
+        reminder.target_date,
+        reminder.nights,
+        offsetMinutes,
+        windowOpen
+      );
+
+      try {
+        await notifier.send({
+          title,
+          body,
+          url: `https://www.recreation.gov/camping/campgrounds/${reminder.facility_id}`,
+          priority: offsetMinutes === 0 ? "urgent" : "high",
+          tags: ["tent", "calendar"],
+        });
+
+        notifiedAt.push(offsetMinutes);
+        await markReminderNotified(env.DB, reminder.id, notifiedAt);
+      } catch (err) {
+        console.error(`Failed to send reminder ${reminder.id} (offset ${offsetMinutes}):`, err);
+      }
+    }
+  }
 }
 
 export async function runCheck(env: Env, notifier: NotificationChannel): Promise<void> {
