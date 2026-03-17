@@ -1,0 +1,31 @@
+{
+  "count": 2,
+  "campsites": {
+    "7859": {
+      "campsite_id": "7859",
+      "site": "042",
+      "campsite_type": "STANDARD NONELECTRIC",
+      "loop": "NORTH PINES",
+      "type_of_use": "Overnight",
+      "min_num_people": 1,
+      "max_num_people": 6,
+      "availabilities": {
+        "2026-07-01T00:00:00Z": "Reserved",
+        "2026-07-02T00:00:00Z": "Available",
+        "2026-07-03T00:00:00Z": "Not Available"
+      }
+    },
+    "7860": {
+      "campsite_id": "7860",
+      "site": "043",
+      "campsite_type": "TENT ONLY NONELECTRIC",
+      "loop": "NORTH PINES",
+      "type_of_use": "Day",
+      "min_num_people": 1,
+      "max_num_people": 4,
+      "availabilities": {
+        "2026-07-01T00:00:00Z": "Available"
+      }
+    }
+  }
+}

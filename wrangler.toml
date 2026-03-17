@@ -1,0 +1,20 @@
+name = "smoke-signal"
+main = "src/index.ts"
+compatibility_date = "2024-12-18"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+NTFY_SERVER = "https://ntfy.sh"
+# NTFY_TOPIC is set via `wrangler secret put NTFY_TOPIC` — never commit it
+
+[[triggers]]
+crons = ["*/15 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "smoke-signal"
+database_id = "placeholder-run-wrangler-d1-create-smoke-signal"
+migrations_dir = "src/db/migrations"
+
+[dev]
+port = 8787

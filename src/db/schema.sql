@@ -1,0 +1,3 @@
+-- Canonical schema reference — the actual migration is in migrations/0001_initial.sql
+-- Run: wrangler d1 migrations apply smoke-signal
+--      wrangler d1 migrations apply smoke-signal --remote  (for production)
