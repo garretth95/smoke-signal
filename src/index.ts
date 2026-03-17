@@ -1,3 +1,6 @@
+import { runCheck } from "./checker";
+import { NtfyChannel } from "./notifications/ntfy";
+
 export interface Env {
   DB: D1Database;
   NTFY_SERVER: string;
@@ -10,9 +13,9 @@ export default {
     return new Response("smoke-signal ok", { status: 200 });
   },
 
-  // Cron handler — availability checker (Phase 1)
-  scheduled(_event: ScheduledEvent, _env: Env, _ctx: ExecutionContext): void {
-    // TODO: implement checker.ts and wire it here
-    console.log("smoke-signal scheduled check triggered");
+  // Cron handler — availability checker
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const ntfy = new NtfyChannel(env.NTFY_SERVER, env.NTFY_TOPIC);
+    await runCheck(env, ntfy);
   },
 };

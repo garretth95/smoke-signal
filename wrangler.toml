@@ -13,7 +13,7 @@ crons = ["*/15 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "smoke-signal"
-database_id = "placeholder-run-wrangler-d1-create-smoke-signal"
+database_id = "5fc77601-1243-4b04-81e4-952f3d7e7ffa"
 migrations_dir = "src/db/migrations"
 
 [dev]
