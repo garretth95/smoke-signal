@@ -63,7 +63,7 @@ Pick an unguessable topic name — it's your only access control on ntfy's free 
 
 ```bash
 wrangler secret put NTFY_TOPIC
-# enter something like: smoke-signal-3f8a2c1d-9b47-4e6f-a821-0d5c3e7f1b94
+# enter something like: smoke-signal-8ffe11e6-4d6d-4a30-9e38-1f444a064dc9
 ```
 
 Subscribe to the same topic in the ntfy app on your phone.
