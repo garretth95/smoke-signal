@@ -15,7 +15,8 @@ const {
   mockWasRecentlyNotified,
   mockLogNotification,
 } = vi.hoisted(() => ({
-  mockFetchAvailability: vi.fn<(facilityId: string, month: Date) => Promise<CampsiteAvailability[]>>(),
+  mockFetchAvailability:
+    vi.fn<(facilityId: string, month: Date) => Promise<CampsiteAvailability[]>>(),
   mockGetActiveWatches: vi.fn<() => Promise<Watch[]>>(),
   mockGetSnapshots: vi.fn<() => Promise<Map<string, string>>>(),
   mockUpsertSnapshots: vi.fn<() => Promise<void>>(),
@@ -31,11 +32,11 @@ vi.mock("../src/providers/recreation-gov", () => ({
 }));
 
 vi.mock("../src/db/queries", () => ({
-  getActiveWatches: (...args: unknown[]) => mockGetActiveWatches(...args),
-  getSnapshots: (...args: unknown[]) => mockGetSnapshots(...args),
-  upsertSnapshots: (...args: unknown[]) => mockUpsertSnapshots(...args),
-  wasRecentlyNotified: (...args: unknown[]) => mockWasRecentlyNotified(...args),
-  logNotification: (...args: unknown[]) => mockLogNotification(...args),
+  getActiveWatches: mockGetActiveWatches,
+  getSnapshots: mockGetSnapshots,
+  upsertSnapshots: mockUpsertSnapshots,
+  wasRecentlyNotified: mockWasRecentlyNotified,
+  logNotification: mockLogNotification,
 }));
 
 // --- Helpers ---
@@ -322,8 +323,16 @@ describe("runCheck", () => {
 
   it("sends one notification per newly available site, not per watch", async () => {
     const watch = makeWatch();
-    const avail1 = makeAvailability({ campsiteId: "7859", date: "2026-07-04", status: "Available" });
-    const avail2 = makeAvailability({ campsiteId: "7860", date: "2026-07-04", status: "Available" });
+    const avail1 = makeAvailability({
+      campsiteId: "7859",
+      date: "2026-07-04",
+      status: "Available",
+    });
+    const avail2 = makeAvailability({
+      campsiteId: "7860",
+      date: "2026-07-04",
+      status: "Available",
+    });
 
     mockGetActiveWatches.mockResolvedValue([watch]);
     mockFetchAvailability.mockResolvedValue([avail1, avail2]);

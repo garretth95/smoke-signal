@@ -36,12 +36,11 @@ export async function getActiveWatches(db: D1Database): Promise<Watch[]> {
   return result.results;
 }
 
-export async function getSnapshots(
-  db: D1Database,
-  watchId: number
-): Promise<Map<string, string>> {
+export async function getSnapshots(db: D1Database, watchId: number): Promise<Map<string, string>> {
   const result = await db
-    .prepare("SELECT campsite_id, check_date, status FROM availability_snapshots WHERE watch_id = ?")
+    .prepare(
+      "SELECT campsite_id, check_date, status FROM availability_snapshots WHERE watch_id = ?"
+    )
     .bind(watchId)
     .all<{ campsite_id: string; check_date: string; status: string }>();
 

@@ -42,7 +42,10 @@ function monthKey(provider: string, facilityId: string, month: Date): string {
   return `${provider}:${facilityId}:${y}-${m}`;
 }
 
-function applyWatchFilters(availability: CampsiteAvailability[], watch: Watch): CampsiteAvailability[] {
+function applyWatchFilters(
+  availability: CampsiteAvailability[],
+  watch: Watch
+): CampsiteAvailability[] {
   let filtered = availability;
 
   // Filter to the watch's date range
@@ -77,7 +80,12 @@ function formatDateDisplay(isoDate: string): string {
   // "2026-07-04" → "Jul 4, 2026"
   const [year, month, day] = isoDate.split("-").map(Number);
   const d = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1));
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 export async function runCheck(env: Env, notifier: NotificationChannel): Promise<void> {
@@ -137,7 +145,9 @@ export async function runCheck(env: Env, notifier: NotificationChannel): Promise
       const previousStatus = snapshots.get(snapshotKey);
 
       const becameAvailable =
-        avail.status === "Available" && previousStatus !== undefined && previousStatus !== "Available";
+        avail.status === "Available" &&
+        previousStatus !== undefined &&
+        previousStatus !== "Available";
 
       if (becameAvailable) {
         const alreadyNotified = await wasRecentlyNotified(

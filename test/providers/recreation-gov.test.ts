@@ -42,19 +42,19 @@ describe("RecreationGovProvider", () => {
     expect(r.maxPeople).toBe(6);
   });
 
-  it("throws on non-OK response", async () => {
+  it("throws on non-OK response", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: false, status: 429, statusText: "Too Many Requests" })
     );
     const provider = new RecreationGovProvider();
-    await expect(provider.fetchAvailability("232450", new Date("2026-07-01"))).rejects.toThrow(
+    return expect(provider.fetchAvailability("232450", new Date("2026-07-01"))).rejects.toThrow(
       "429"
     );
   });
 
-  it("throws from searchFacilities when no API key provided", async () => {
+  it("throws from searchFacilities when no API key provided", () => {
     const provider = new RecreationGovProvider();
-    await expect(provider.searchFacilities("yosemite")).rejects.toThrow("RIDB API key");
+    return expect(provider.searchFacilities("yosemite")).rejects.toThrow("RIDB API key");
   });
 });
