@@ -4,6 +4,8 @@
 
 Monitors [Recreation.gov](https://recreation.gov) for cancellations and sends push notifications via [ntfy.sh](https://ntfy.sh). Runs entirely on Cloudflare Workers — no server, no cost.
 
+![smoke-signal management UI](screenshot.png)
+
 ---
 
 ## How it works
@@ -17,6 +19,11 @@ Cloudflare cron (*/15 * * * *)
   → site opened up? → push notification via ntfy.sh
                     → log to D1
 ```
+
+There are two types of alerts:
+
+- **Watches** — monitor a campground date range for cancellations. Notifies you the moment a site opens up.
+- **Reminders** — alert you before a booking window opens so you're ready to book the instant reservations go live. Fires at 1 day, 1 hour, 15 minutes, and exactly at opening (7 AM Mountain Time).
 
 ---
 
@@ -47,7 +54,7 @@ Copy the `database_id` from the output into `wrangler.toml`.
 ### 4. Apply the schema
 
 ```bash
-wrangler d1 migrations apply smoke-signal --remote
+npm run migrate:remote
 ```
 
 ### 5. Set your ntfy topic
@@ -64,33 +71,33 @@ Subscribe to the same topic in the ntfy app on your phone.
 ### 6. Deploy
 
 ```bash
-wrangler deploy
+npm run deploy
 ```
 
-### 7. Add a watch
+### 7. Add a watch or reminder
 
-Open the management UI at your worker URL (e.g. `https://smoke-signal.<your-subdomain>.workers.dev`) and fill in the form, or use the API directly:
-
-```bash
-curl -X POST https://smoke-signal.<your-subdomain>.workers.dev/api/watches \
-  -H "Content-Type: application/json" \
-  -d '{
-    "facility_id": "232450",
-    "facility_name": "Lower Pines",
-    "start_date": "2026-07-01",
-    "end_date": "2026-07-31"
-  }'
-```
+Open the management UI at your worker URL (e.g. `https://smoke-signal.<your-subdomain>.workers.dev`). Search for a campground by name, set your dates, and hit Add Watch.
 
 The worker will check availability on the next cron tick. The first run seeds the snapshot baseline — notifications fire on subsequent runs when a site opens up.
 
 ---
 
-## Finding facility IDs
+## Campground search
+
+The UI includes a fuzzy search across 4,000+ Recreation.gov camping facilities sourced from RIDB historical data. Search by campground name, park, or state — e.g. "lower pines", "yosemite", or "north pines ca". If your campground isn't listed, choose "Other" to enter a facility ID manually.
+
+**Finding a facility ID manually:**
 
 1. Go to [recreation.gov](https://recreation.gov) and find your campground
 2. The URL contains the facility ID: `recreation.gov/camping/campgrounds/232450`
-3. Or search via the RIDB API: `https://ridb.recreation.gov/api/v1/facilities?query=lower+pines&apikey=YOUR_KEY`
+
+---
+
+## Booking windows
+
+Recreation.gov opens reservations on a rolling basis. New dates become bookable at **7 AM Mountain Time**, typically 6 months in advance (5 months for Yosemite valley campgrounds).
+
+Use **Reminders** to get notified at 1 day, 1 hour, 15 minutes, and right at opening so you can book the moment the window goes live.
 
 ---
 
@@ -126,6 +133,21 @@ The worker serves a management UI at `/` and a JSON API at `/api/*`.
 
 All filter fields (`loop_name`, `site_types`, `site_ids`) are optional — omit them to watch all sites at the facility.
 
+### Reminder object
+
+```json
+{
+  "facility_id": "232450",
+  "facility_name": "Lower Pines",
+  "target_date": "2026-07-04",
+  "nights": 2,
+  "window_months": 6,
+  "notify_schedule": [-1440, -60, -15, 0]
+}
+```
+
+`notify_schedule` is a JSON array of minute offsets relative to window open time. Negative values fire before the window opens; `0` fires at opening.
+
 ---
 
 ## Auth
@@ -140,7 +162,7 @@ Set up [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/appl
 cp .dev.vars.example .dev.vars
 # fill in NTFY_TOPIC with your topic name
 
-wrangler d1 migrations apply smoke-signal --local
+npm run migrate:local
 wrangler dev --test-scheduled
 ```
 
@@ -178,17 +200,16 @@ Recreation.gov's availability endpoint is undocumented and provided as-is. This 
 ```
 Cloudflare Worker
 ├── scheduled()   ← cron every 15min
-│   ├── fetch Recreation.gov availability API
-│   ├── diff against D1 snapshots
-│   └── send ntfy push on Available transition
+│   ├── runCheck()         fetch availability, diff snapshots, notify on cancellations
+│   └── runReminderChecks() fire booking window alerts at scheduled offsets
 └── fetch()       ← HTTP requests
-    ├── GET /     management UI
+    ├── GET /     management UI (fuzzy campground search, 4,035 facilities)
     └── /api/*    JSON API (Hono)
 
 D1 Database
 ├── watches                 active campground monitors
 ├── availability_snapshots  last known state per (watch, site, date)
-├── reminders               booking window alerts
+├── reminders               booking window alerts with per-offset notification schedule
 └── notification_log        sent notification history
 ```
 
