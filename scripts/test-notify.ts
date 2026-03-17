@@ -26,11 +26,10 @@ function loadDevVars(): Record<string, string> {
 
 async function main() {
   const vars = loadDevVars();
-  const server = (
-    vars["NTFY_SERVER"] ??
-    process.env["NTFY_SERVER"] ??
-    "https://ntfy.sh"
-  ).replace(/\/$/, "");
+  const server = (vars["NTFY_SERVER"] ?? process.env["NTFY_SERVER"] ?? "https://ntfy.sh").replace(
+    /\/$/,
+    ""
+  );
   const topic = vars["NTFY_TOPIC"] ?? process.env["NTFY_TOPIC"];
 
   if (!topic) {
