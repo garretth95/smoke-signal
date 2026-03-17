@@ -189,7 +189,7 @@ interface CampsiteAvailability {
   siteName: string;
   siteType: string;
   loop: string;
-  date: string;           // ISO date
+  date: string; // ISO date
   status: "Available" | "Reserved" | "NotAvailable" | "Unknown";
   minPeople?: number;
   maxPeople?: number;
@@ -197,10 +197,7 @@ interface CampsiteAvailability {
 
 interface AvailabilityProvider {
   name: string;
-  fetchAvailability(
-    facilityId: string,
-    month: Date
-  ): Promise<CampsiteAvailability[]>;
+  fetchAvailability(facilityId: string, month: Date): Promise<CampsiteAvailability[]>;
   searchFacilities?(query: string): Promise<Facility[]>;
 }
 
@@ -220,9 +217,9 @@ interface NotificationChannel {
 interface NotificationMessage {
   title: string;
   body: string;
-  url?: string;          // deep link to recreation.gov booking page
+  url?: string; // deep link to recreation.gov booking page
   priority?: "low" | "default" | "high" | "urgent";
-  tags?: string[];       // ntfy emoji tags like "tent", "fire"
+  tags?: string[]; // ntfy emoji tags like "tent", "fire"
 }
 
 // src/notifications/ntfy.ts  (Phase 1 — primary channel)
@@ -267,15 +264,15 @@ Once configured, visiting your worker URL from any device prompts a Cloudflare l
 
 ## Cost Estimate
 
-| Service | Free Tier | Your Usage | Cost |
-|---|---|---|---|
-| Cloudflare Worker | 100K req/day | ~1K-2K/day (cron + API calls) | **$0** |
-| Cloudflare D1 | 5M reads, 100K writes/day | ~10K reads, ~500 writes/day | **$0** |
-| Cloudflare Workers (cron) | Included, 3 triggers/worker | 1-2 triggers | **$0** |
-| Cloudflare Access | Free up to 50 users | 1 user | **$0** |
-| ntfy.sh | 250 messages/day free | ~5-20/day | **$0** |
-| RIDB API key | Free | Metadata lookups | **$0** |
-| Recreation.gov availability | No key needed | ~50-100 calls/day | **$0** |
+| Service                     | Free Tier                   | Your Usage                    | Cost   |
+| --------------------------- | --------------------------- | ----------------------------- | ------ |
+| Cloudflare Worker           | 100K req/day                | ~1K-2K/day (cron + API calls) | **$0** |
+| Cloudflare D1               | 5M reads, 100K writes/day   | ~10K reads, ~500 writes/day   | **$0** |
+| Cloudflare Workers (cron)   | Included, 3 triggers/worker | 1-2 triggers                  | **$0** |
+| Cloudflare Access           | Free up to 50 users         | 1 user                        | **$0** |
+| ntfy.sh                     | 250 messages/day free       | ~5-20/day                     | **$0** |
+| RIDB API key                | Free                        | Metadata lookups              | **$0** |
+| Recreation.gov availability | No key needed               | ~50-100 calls/day             | **$0** |
 
 **Total estimated monthly cost: $0**
 
@@ -327,6 +324,7 @@ smoke-signal/
 ## Implementation Order (for Claude Code)
 
 ### Phase 1: Core checker (MVP)
+
 1. Set up Wrangler project with D1 binding
 2. Write D1 schema + migration
 3. Implement `recreation-gov.ts` provider (availability API)
@@ -336,6 +334,7 @@ smoke-signal/
 7. Test with a real campground (pick one you care about)
 
 ### Phase 2: Management UI + reminders
+
 8. Add management API routes (CRUD watches/reminders)
 9. Set up Cloudflare Access for auth
 10. Build simple management UI (HTML form + table)
@@ -343,6 +342,7 @@ smoke-signal/
 12. Add notification deduplication + logging
 
 ### Phase 3: Polish + email
+
 13. Add RIDB facility search to make adding watches easier
 14. Add `email.ts` via Resend (if you want email alongside push)
 15. Add `reserve-california.ts` provider stub
@@ -365,9 +365,11 @@ smoke-signal/
 **Deduplication strategy:** Don't notify for the same (watch, campsite, date) more than once per hour. Use `notification_log` to check recency before sending.
 
 **Recreation.gov booking deep link:** When you detect availability, include a direct link in the notification:
+
 ```
 https://www.recreation.gov/camping/campsites/{campsiteId}
 ```
+
 This lets you immediately tap the notification and book.
 
 ---
@@ -400,17 +402,20 @@ The existing campsite checker tools on GitHub (banool's Python script, etc.) are
 ### Repo hygiene
 
 **Secrets — never commit these:**
+
 - ntfy topic name (effectively a password on the free tier)
 - Resend API key (Phase 3)
 - Any Cloudflare API tokens
 
 All secrets should be set via `wrangler secret put` and never appear in `wrangler.toml`. Include a `.env.example` showing the shape without real values:
+
 ```
 NTFY_TOPIC=smoke-signal-change-me-to-something-random
 NTFY_SERVER=https://ntfy.sh
 ```
 
 **.gitignore should include:**
+
 ```
 .env
 .wrangler/
@@ -432,4 +437,5 @@ dist/
 ### Responsible use note (for README)
 
 Include a section like:
+
 > **Be a good API citizen.** Recreation.gov's availability endpoint is undocumented and provided as-is. This tool defaults to 15-minute check intervals with random jitter. Please don't decrease the interval below 5 minutes or monitor an unreasonable number of campgrounds. If everyone hammers the API, it'll get locked down and nobody wins.

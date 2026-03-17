@@ -8,7 +8,7 @@ describe("RecreationGovProvider", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => fixture,
+        json: () => fixture,
       })
     );
   });

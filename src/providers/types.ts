@@ -5,7 +5,7 @@ export interface CampsiteAvailability {
   siteName: string;
   siteType: string;
   loop: string;
-  date: string;        // ISO date "YYYY-MM-DD"
+  date: string; // ISO date "YYYY-MM-DD"
   status: AvailabilityStatus;
   minPeople?: number;
   maxPeople?: number;

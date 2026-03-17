@@ -1,4 +1,9 @@
-import type { AvailabilityProvider, AvailabilityStatus, CampsiteAvailability, Facility } from "./types";
+import type {
+  AvailabilityProvider,
+  AvailabilityStatus,
+  CampsiteAvailability,
+  Facility,
+} from "./types";
 
 const AVAILABILITY_BASE = "https://www.recreation.gov/api/camps/availability/campground";
 const RIDB_BASE = "https://ridb.recreation.gov/api/v1";
@@ -7,13 +12,13 @@ const USER_AGENT = "smoke-signal/1.0 (personal use; github.com/garrettwheald/smo
 // Shape returned by the Recreation.gov availability API
 interface RecGovCampsiteEntry {
   campsite_id: string;
-  site: string;              // site label e.g. "042"
-  campsite_type: string;     // e.g. "STANDARD NONELECTRIC"
+  site: string; // site label e.g. "042"
+  campsite_type: string; // e.g. "STANDARD NONELECTRIC"
   loop: string;
-  type_of_use: string;       // "Overnight" | "Day"
+  type_of_use: string; // "Overnight" | "Day"
   min_num_people: number;
   max_num_people: number;
-  availabilities: Record<string, string>;  // ISO timestamp → status string
+  availabilities: Record<string, string>; // ISO timestamp → status string
 }
 
 interface RecGovMonthResponse {
@@ -97,7 +102,7 @@ export class RecreationGovProvider implements AvailabilityProvider {
       );
     }
 
-    const data = (await response.json()) as RecGovMonthResponse;
+    const data = await response.json<RecGovMonthResponse>();
 
     const results: CampsiteAvailability[] = [];
 
@@ -133,12 +138,12 @@ export class RecreationGovProvider implements AvailabilityProvider {
 
     const params = new URLSearchParams({
       query,
-      activity: "9",  // Camping
+      activity: "9", // Camping
       limit: "20",
       apikey: this.ridbApiKey,
     });
 
-    const response = await fetch(`${RIDB_BASE}/facilities?${params}`, {
+    const response = await fetch(`${RIDB_BASE}/facilities?${params.toString()}`, {
       headers: {
         "User-Agent": USER_AGENT,
         Accept: "application/json",
@@ -149,7 +154,7 @@ export class RecreationGovProvider implements AvailabilityProvider {
       throw new Error(`RIDB API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = (await response.json()) as RidbSearchResponse;
+    const data = await response.json<RidbSearchResponse>();
 
     return data.RECDATA.map((f) => ({
       id: f.FacilityID,
