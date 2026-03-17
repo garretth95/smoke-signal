@@ -1,4 +1,19 @@
+import { CAMPGROUNDS } from "./campgrounds";
+
 export function renderUI(): string {
+  const campgroundsJson = JSON.stringify(CAMPGROUNDS);
+
+  // Build grouped <option> elements by state
+  const states = [...new Set(CAMPGROUNDS.map((c) => c.state || "Other"))];
+  const selectOptions = states
+    .map((state) => {
+      const opts = CAMPGROUNDS.filter((c) => (c.state || "Other") === state)
+        .map((c) => `<option value="${c.id}" data-name="${c.name}">${c.name} — ${c.park}</option>`)
+        .join("\n        ");
+      return `<optgroup label="${state}">\n        ${opts}\n      </optgroup>`;
+    })
+    .join("\n      ");
+
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -33,6 +48,7 @@ export function renderUI(): string {
     .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; margin-top: 0.25rem; }
     .empty { color: #999; font-size: 0.875rem; padding: 1rem 0; }
     .tag { display: inline-block; background: #e0f2fe; color: #0369a1; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.75rem; }
+    .custom-id { margin-top: 0.5rem; }
     #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1e293b; color: #fff; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.875rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
     #toast.show { opacity: 1; }
     @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
@@ -68,13 +84,16 @@ export function renderUI(): string {
   <div class="card">
     <form id="watch-form">
       <div class="form-grid">
-        <div class="form-group">
-          <label for="facility_id">Facility ID *</label>
-          <input id="facility_id" name="facility_id" placeholder="e.g. 232450" required />
-        </div>
-        <div class="form-group">
-          <label for="facility_name">Facility Name</label>
-          <input id="facility_name" name="facility_name" placeholder="e.g. Lower Pines" />
+        <div class="form-group full">
+          <label for="campground-select">Campground *</label>
+          <select id="campground-select" required>
+            <option value="">— select a campground —</option>
+            ${selectOptions}
+            <option value="__custom__">Other (enter ID manually)</option>
+          </select>
+          <div id="custom-id-group" class="custom-id" style="display:none">
+            <input id="custom_facility_id" placeholder="Facility ID (from recreation.gov URL)" />
+          </div>
         </div>
         <div class="form-group">
           <label for="start_date">Start Date *</label>
@@ -119,13 +138,16 @@ export function renderUI(): string {
   <div class="card">
     <form id="reminder-form">
       <div class="form-grid">
-        <div class="form-group">
-          <label for="r_facility_id">Facility ID *</label>
-          <input id="r_facility_id" name="facility_id" placeholder="e.g. 232450" required />
-        </div>
-        <div class="form-group">
-          <label for="r_facility_name">Facility Name</label>
-          <input id="r_facility_name" name="facility_name" placeholder="e.g. Lower Pines" />
+        <div class="form-group full">
+          <label for="r-campground-select">Campground *</label>
+          <select id="r-campground-select" required>
+            <option value="">— select a campground —</option>
+            ${selectOptions}
+            <option value="__custom__">Other (enter ID manually)</option>
+          </select>
+          <div id="r-custom-id-group" class="custom-id" style="display:none">
+            <input id="r_custom_facility_id" placeholder="Facility ID (from recreation.gov URL)" />
+          </div>
         </div>
         <div class="form-group">
           <label for="r_target_date">First Night *</label>
@@ -153,6 +175,9 @@ export function renderUI(): string {
   <div id="toast"></div>
 
   <script>
+    const CAMPGROUNDS = ${campgroundsJson};
+    const cgMap = Object.fromEntries(CAMPGROUNDS.map(c => [c.id, c]));
+
     const toast = (msg, err) => {
       const el = document.getElementById('toast');
       el.textContent = msg;
@@ -163,6 +188,25 @@ export function renderUI(): string {
 
     const fmt = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     const fmtAdded = (ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    function resolveSelection(selectId, customInputId) {
+      const sel = document.getElementById(selectId);
+      if (sel.value === '__custom__') {
+        const id = document.getElementById(customInputId).value.trim();
+        return { facility_id: id, facility_name: id };
+      }
+      const cg = cgMap[sel.value];
+      return cg ? { facility_id: cg.id, facility_name: cg.name } : null;
+    }
+
+    function wireCustomToggle(selectId, groupId) {
+      document.getElementById(selectId).addEventListener('change', (e) => {
+        document.getElementById(groupId).style.display = e.target.value === '__custom__' ? 'block' : 'none';
+      });
+    }
+
+    wireCustomToggle('campground-select', 'custom-id-group');
+    wireCustomToggle('r-campground-select', 'r-custom-id-group');
 
     async function loadStatus() {
       const s = await fetch('/api/status').then(r => r.json());
@@ -229,10 +273,11 @@ export function renderUI(): string {
 
     document.getElementById('watch-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const facility = resolveSelection('campground-select', 'custom_facility_id');
+      if (!facility || !facility.facility_id) { toast('Select a campground', true); return; }
       const fd = new FormData(e.target);
       const body = {
-        facility_id: fd.get('facility_id'),
-        facility_name: fd.get('facility_name') || undefined,
+        ...facility,
         start_date: fd.get('start_date'),
         end_date: fd.get('end_date'),
         loop_name: fd.get('loop_name') || undefined,
@@ -242,6 +287,7 @@ export function renderUI(): string {
       if (res.ok) {
         toast('Watch added');
         e.target.reset();
+        document.getElementById('custom-id-group').style.display = 'none';
         loadWatches();
         loadStatus();
       } else {
@@ -252,10 +298,11 @@ export function renderUI(): string {
 
     document.getElementById('reminder-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const facility = resolveSelection('r-campground-select', 'r_custom_facility_id');
+      if (!facility || !facility.facility_id) { toast('Select a campground', true); return; }
       const fd = new FormData(e.target);
       const body = {
-        facility_id: fd.get('facility_id'),
-        facility_name: fd.get('facility_name') || undefined,
+        ...facility,
         target_date: fd.get('target_date'),
         nights: Number(fd.get('nights')),
         window_months: Number(fd.get('window_months')),
@@ -265,6 +312,7 @@ export function renderUI(): string {
       if (res.ok) {
         toast('Reminder added');
         e.target.reset();
+        document.getElementById('r-custom-id-group').style.display = 'none';
         loadReminders();
       } else {
         const err = await res.json();

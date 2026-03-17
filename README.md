@@ -98,16 +98,16 @@ The worker will check availability on the next cron tick. The first run seeds th
 
 The worker serves a management UI at `/` and a JSON API at `/api/*`.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/watches` | List active watches |
-| `POST` | `/api/watches` | Create a watch |
-| `DELETE` | `/api/watches/:id` | Deactivate a watch |
-| `GET` | `/api/watches/:id/history` | Notification history for a watch |
-| `GET` | `/api/reminders` | List pending booking window reminders |
-| `POST` | `/api/reminders` | Create a reminder |
-| `DELETE` | `/api/reminders/:id` | Delete a reminder |
-| `GET` | `/api/status` | Active watches, snapshot count, 24h notification count |
+| Method   | Path                       | Description                                            |
+| -------- | -------------------------- | ------------------------------------------------------ |
+| `GET`    | `/api/watches`             | List active watches                                    |
+| `POST`   | `/api/watches`             | Create a watch                                         |
+| `DELETE` | `/api/watches/:id`         | Deactivate a watch                                     |
+| `GET`    | `/api/watches/:id/history` | Notification history for a watch                       |
+| `GET`    | `/api/reminders`           | List pending booking window reminders                  |
+| `POST`   | `/api/reminders`           | Create a reminder                                      |
+| `DELETE` | `/api/reminders/:id`       | Delete a reminder                                      |
+| `GET`    | `/api/status`              | Active watches, snapshot count, 24h notification count |
 
 ### Watch object
 
@@ -160,10 +160,10 @@ npx tsx scripts/test-notify.ts
 
 ## Configuration
 
-| Variable | Where | Description |
-|----------|-------|-------------|
+| Variable      | Where                    | Description                                  |
+| ------------- | ------------------------ | -------------------------------------------- |
 | `NTFY_SERVER` | `wrangler.toml` `[vars]` | ntfy server URL (default: `https://ntfy.sh`) |
-| `NTFY_TOPIC` | `wrangler secret put` | Your ntfy topic — keep this private |
+| `NTFY_TOPIC`  | `wrangler secret put`    | Your ntfy topic — keep this private          |
 
 ---
 

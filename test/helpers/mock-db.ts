@@ -30,7 +30,7 @@ export function createMockDb(config: MockDbConfig = {}): D1Database {
   function makeStatement(sql: string) {
     const stmt = {
       _sql: sql,
-      bind: vi.fn().mockReturnThis() as unknown as (...values: unknown[]) => typeof stmt,
+      bind: vi.fn().mockReturnThis() as unknown as (...values: unknown[]) => D1PreparedStatement,
       all: vi.fn((): Promise<{ results: Record<string, unknown>[] }> => {
         if (sql.includes("FROM watches")) return Promise.resolve({ results: watches });
         if (sql.includes("FROM reminders")) return Promise.resolve({ results: reminders });
