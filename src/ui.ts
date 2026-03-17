@@ -3,17 +3,6 @@ import { CAMPGROUNDS } from "./campgrounds";
 export function renderUI(): string {
   const campgroundsJson = JSON.stringify(CAMPGROUNDS);
 
-  // Build grouped <option> elements by state
-  const states = [...new Set(CAMPGROUNDS.map((c) => c.state || "Other"))];
-  const selectOptions = states
-    .map((state) => {
-      const opts = CAMPGROUNDS.filter((c) => (c.state || "Other") === state)
-        .map((c) => `<option value="${c.id}" data-name="${c.name}">${c.name} — ${c.park}</option>`)
-        .join("\n        ");
-      return `<optgroup label="${state}">\n        ${opts}\n      </optgroup>`;
-    })
-    .join("\n      ");
-
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,10 +37,16 @@ export function renderUI(): string {
     .form-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; margin-top: 0.25rem; }
     .empty { color: #999; font-size: 0.875rem; padding: 1rem 0; }
     .tag { display: inline-block; background: #e0f2fe; color: #0369a1; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.75rem; }
-    .custom-id { margin-top: 0.5rem; }
     #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1e293b; color: #fff; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.875rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
     #toast.show { opacity: 1; }
     @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+    .ac-wrap { position: relative; }
+    .ac-drop { position: absolute; z-index: 100; top: calc(100% + 2px); left: 0; right: 0; background: #fff; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 280px; overflow-y: auto; }
+    .ac-item { padding: 0.45rem 0.75rem; cursor: pointer; display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.875rem; }
+    .ac-item:hover, .ac-item.ac-active { background: #eff6ff; }
+    .ac-sub { color: #888; font-size: 0.75rem; }
+    .ac-other { color: #666; font-style: italic; border-top: 1px solid #eee; margin-top: 2px; }
+    .ac-selected { background: #eff6ff; border-color: #2563eb; }
   </style>
 </head>
 <body>
@@ -85,13 +80,12 @@ export function renderUI(): string {
     <form id="watch-form">
       <div class="form-grid">
         <div class="form-group full">
-          <label for="campground-select">Campground *</label>
-          <select id="campground-select" required>
-            <option value="">— select a campground —</option>
-            ${selectOptions}
-            <option value="__custom__">Other (enter ID manually)</option>
-          </select>
-          <div id="custom-id-group" class="custom-id" style="display:none">
+          <label for="cg-search">Campground *</label>
+          <div class="ac-wrap">
+            <input id="cg-search" type="text" placeholder="Search campgrounds…" autocomplete="off" />
+            <div id="cg-drop" class="ac-drop" hidden></div>
+          </div>
+          <div id="custom-id-group" style="display:none; margin-top:0.4rem">
             <input id="custom_facility_id" placeholder="Facility ID (from recreation.gov URL)" />
           </div>
         </div>
@@ -139,13 +133,12 @@ export function renderUI(): string {
     <form id="reminder-form">
       <div class="form-grid">
         <div class="form-group full">
-          <label for="r-campground-select">Campground *</label>
-          <select id="r-campground-select" required>
-            <option value="">— select a campground —</option>
-            ${selectOptions}
-            <option value="__custom__">Other (enter ID manually)</option>
-          </select>
-          <div id="r-custom-id-group" class="custom-id" style="display:none">
+          <label for="r-cg-search">Campground *</label>
+          <div class="ac-wrap">
+            <input id="r-cg-search" type="text" placeholder="Search campgrounds…" autocomplete="off" />
+            <div id="r-cg-drop" class="ac-drop" hidden></div>
+          </div>
+          <div id="r-custom-id-group" style="display:none; margin-top:0.4rem">
             <input id="r_custom_facility_id" placeholder="Facility ID (from recreation.gov URL)" />
           </div>
         </div>
@@ -176,7 +169,6 @@ export function renderUI(): string {
 
   <script>
     const CAMPGROUNDS = ${campgroundsJson};
-    const cgMap = Object.fromEntries(CAMPGROUNDS.map(c => [c.id, c]));
 
     const toast = (msg, err) => {
       const el = document.getElementById('toast');
@@ -189,24 +181,155 @@ export function renderUI(): string {
     const fmt = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     const fmtAdded = (ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-    function resolveSelection(selectId, customInputId) {
-      const sel = document.getElementById(selectId);
-      if (sel.value === '__custom__') {
-        const id = document.getElementById(customInputId).value.trim();
-        return { facility_id: id, facility_name: id };
+    // --- Fuzzy search ---
+
+    function fuzzyScore(cg, terms) {
+      const name = cg.name.toLowerCase();
+      const haystack = (cg.name + ' ' + cg.park + ' ' + cg.state).toLowerCase();
+      let score = 0;
+      for (const term of terms) {
+        if (name === term) score += 10;
+        else if (name.startsWith(term)) score += 5;
+        else if (name.includes(term)) score += 3;
+        else if (haystack.includes(term)) score += 1;
+        else return -1; // all terms must match
       }
-      const cg = cgMap[sel.value];
-      return cg ? { facility_id: cg.id, facility_name: cg.name } : null;
+      return score;
     }
 
-    function wireCustomToggle(selectId, groupId) {
-      document.getElementById(selectId).addEventListener('change', (e) => {
-        document.getElementById(groupId).style.display = e.target.value === '__custom__' ? 'block' : 'none';
+    function search(query) {
+      const terms = query.toLowerCase().trim().split(/\\s+/).filter(Boolean);
+      if (!terms.length) return [];
+      return CAMPGROUNDS
+        .map(cg => ({ cg, score: fuzzyScore(cg, terms) }))
+        .filter(x => x.score >= 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 12)
+        .map(x => x.cg);
+    }
+
+    // --- Autocomplete widget ---
+
+    function makeAutocomplete(inputId, dropId, customGroupId, onSelect) {
+      const input = document.getElementById(inputId);
+      const drop = document.getElementById(dropId);
+      const customGroup = document.getElementById(customGroupId);
+      let activeIdx = -1;
+      let selected = null; // { facility_id, facility_name } | '__custom__' | null
+
+      function renderDrop(items) {
+        if (!items.length && !input.value.trim()) { drop.hidden = true; return; }
+        activeIdx = -1;
+        const rows = items.map((cg, i) =>
+          '<div class="ac-item" data-i="' + i + '" data-id="' + cg.id + '" data-name="' + cg.name.replace(/"/g, '&quot;') + '">' +
+            '<strong>' + cg.name + '</strong>' +
+            '<span class="ac-sub">' + cg.park + (cg.state ? ' &middot; ' + cg.state : '') + '</span>' +
+          '</div>'
+        );
+        rows.push('<div class="ac-item ac-other" data-i="' + items.length + '" data-id="__custom__">Other (enter ID manually)</div>');
+        drop.innerHTML = rows.join('');
+        drop.hidden = false;
+
+        drop.querySelectorAll('.ac-item').forEach(el => {
+          el.addEventListener('mousedown', e => {
+            e.preventDefault();
+            pick(el.dataset.id, el.dataset.name || '');
+          });
+        });
+      }
+
+      function pick(id, name) {
+        drop.hidden = true;
+        activeIdx = -1;
+        if (id === '__custom__') {
+          selected = '__custom__';
+          input.value = '';
+          input.placeholder = 'Search campgrounds\u2026';
+          customGroup.style.display = 'block';
+          onSelect('__custom__');
+        } else {
+          selected = { facility_id: id, facility_name: name };
+          input.value = name;
+          input.classList.add('ac-selected');
+          customGroup.style.display = 'none';
+          onSelect(selected);
+        }
+      }
+
+      function clearSelection() {
+        selected = null;
+        input.classList.remove('ac-selected');
+        onSelect(null);
+      }
+
+      function updateActive() {
+        drop.querySelectorAll('.ac-item').forEach((el, i) => {
+          el.classList.toggle('ac-active', i === activeIdx);
+        });
+        const active = drop.querySelector('.ac-active');
+        if (active) active.scrollIntoView({ block: 'nearest' });
+      }
+
+      input.addEventListener('input', () => {
+        clearSelection();
+        renderDrop(search(input.value));
       });
+
+      input.addEventListener('keydown', e => {
+        if (drop.hidden) return;
+        const items = drop.querySelectorAll('.ac-item');
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          activeIdx = Math.min(activeIdx + 1, items.length - 1);
+          updateActive();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          activeIdx = Math.max(activeIdx - 1, 0);
+          updateActive();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          if (activeIdx >= 0) {
+            const el = items[activeIdx];
+            pick(el.dataset.id, el.dataset.name || '');
+          }
+        } else if (e.key === 'Escape') {
+          drop.hidden = true;
+          activeIdx = -1;
+        }
+      });
+
+      input.addEventListener('focus', () => {
+        if (!selected && input.value.trim()) renderDrop(search(input.value));
+      });
+
+      input.addEventListener('blur', () => {
+        setTimeout(() => { drop.hidden = true; }, 150);
+      });
+
+      return {
+        resolve(customInputId) {
+          if (selected && selected !== '__custom__') return selected;
+          if (selected === '__custom__') {
+            const id = document.getElementById(customInputId).value.trim();
+            return id ? { facility_id: id, facility_name: id } : null;
+          }
+          return null;
+        },
+        reset() {
+          input.value = '';
+          input.placeholder = 'Search campgrounds\u2026';
+          input.classList.remove('ac-selected');
+          customGroup.style.display = 'none';
+          drop.hidden = true;
+          selected = null;
+        }
+      };
     }
 
-    wireCustomToggle('campground-select', 'custom-id-group');
-    wireCustomToggle('r-campground-select', 'r-custom-id-group');
+    const watchAc = makeAutocomplete('cg-search', 'cg-drop', 'custom-id-group', () => {});
+    const reminderAc = makeAutocomplete('r-cg-search', 'r-cg-drop', 'r-custom-id-group', () => {});
+
+    // --- API ---
 
     async function loadStatus() {
       const s = await fetch('/api/status').then(r => r.json());
@@ -273,7 +396,7 @@ export function renderUI(): string {
 
     document.getElementById('watch-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const facility = resolveSelection('campground-select', 'custom_facility_id');
+      const facility = watchAc.resolve('custom_facility_id');
       if (!facility || !facility.facility_id) { toast('Select a campground', true); return; }
       const fd = new FormData(e.target);
       const body = {
@@ -287,7 +410,7 @@ export function renderUI(): string {
       if (res.ok) {
         toast('Watch added');
         e.target.reset();
-        document.getElementById('custom-id-group').style.display = 'none';
+        watchAc.reset();
         loadWatches();
         loadStatus();
       } else {
@@ -298,7 +421,7 @@ export function renderUI(): string {
 
     document.getElementById('reminder-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const facility = resolveSelection('r-campground-select', 'r_custom_facility_id');
+      const facility = reminderAc.resolve('r_custom_facility_id');
       if (!facility || !facility.facility_id) { toast('Select a campground', true); return; }
       const fd = new FormData(e.target);
       const body = {
@@ -312,7 +435,7 @@ export function renderUI(): string {
       if (res.ok) {
         toast('Reminder added');
         e.target.reset();
-        document.getElementById('r-custom-id-group').style.display = 'none';
+        reminderAc.reset();
         loadReminders();
       } else {
         const err = await res.json();
