@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { runCheck } from "../src/checker";
+import { runCheck, runExpiredWatchCleanup } from "../src/checker";
 import type { Watch } from "../src/db/queries";
 import type { CampsiteAvailability } from "../src/providers/types";
 import type { NotificationChannel, NotificationMessage } from "../src/notifications/types";
@@ -14,6 +14,7 @@ const {
   mockUpsertSnapshots,
   mockWasRecentlyNotified,
   mockLogNotification,
+  mockDeleteExpiredWatches,
 } = vi.hoisted(() => ({
   mockFetchAvailability:
     vi.fn<(facilityId: string, month: Date) => Promise<CampsiteAvailability[]>>(),
@@ -22,6 +23,7 @@ const {
   mockUpsertSnapshots: vi.fn<() => Promise<void>>(),
   mockWasRecentlyNotified: vi.fn<() => Promise<boolean>>(),
   mockLogNotification: vi.fn<() => Promise<void>>(),
+  mockDeleteExpiredWatches: vi.fn<() => Promise<number>>(),
 }));
 
 vi.mock("../src/providers/recreation-gov", () => ({
@@ -37,6 +39,7 @@ vi.mock("../src/db/queries", () => ({
   upsertSnapshots: mockUpsertSnapshots,
   wasRecentlyNotified: mockWasRecentlyNotified,
   logNotification: mockLogNotification,
+  deleteExpiredWatches: mockDeleteExpiredWatches,
 }));
 
 // --- Helpers ---
@@ -95,6 +98,7 @@ beforeEach(() => {
   mockUpsertSnapshots.mockResolvedValue(undefined);
   mockLogNotification.mockResolvedValue(undefined);
   mockWasRecentlyNotified.mockResolvedValue(false);
+  mockDeleteExpiredWatches.mockResolvedValue(0);
 });
 
 describe("runCheck", () => {
@@ -347,5 +351,37 @@ describe("runCheck", () => {
     await runCheck(fakeEnv, channel);
 
     expect(sent).toHaveLength(2);
+  });
+});
+
+describe("runExpiredWatchCleanup", () => {
+  it("calls deleteExpiredWatches with the DB instance", async () => {
+    await runExpiredWatchCleanup(fakeEnv);
+    expect(mockDeleteExpiredWatches).toHaveBeenCalledOnce();
+    expect(mockDeleteExpiredWatches).toHaveBeenCalledWith(fakeDb);
+  });
+
+  it("does not log when no watches are expired", async () => {
+    mockDeleteExpiredWatches.mockResolvedValue(0);
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await runExpiredWatchCleanup(fakeEnv);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("logs singular 'watch' when exactly one watch is deleted", async () => {
+    mockDeleteExpiredWatches.mockResolvedValue(1);
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await runExpiredWatchCleanup(fakeEnv);
+    expect(spy).toHaveBeenCalledWith("Cleaned up 1 expired watch");
+    spy.mockRestore();
+  });
+
+  it("logs plural 'watches' when multiple watches are deleted", async () => {
+    mockDeleteExpiredWatches.mockResolvedValue(3);
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await runExpiredWatchCleanup(fakeEnv);
+    expect(spy).toHaveBeenCalledWith("Cleaned up 3 expired watches");
+    spy.mockRestore();
   });
 });
