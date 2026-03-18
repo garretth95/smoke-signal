@@ -1,4 +1,4 @@
-import { runCheck, runReminderChecks } from "./checker";
+import { runCheck, runReminderChecks, runExpiredWatchCleanup } from "./checker";
 import { NtfyChannel } from "./notifications/ntfy";
 import app from "./api/router";
 
@@ -13,6 +13,7 @@ export default {
 
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
     const ntfy = new NtfyChannel(env.NTFY_SERVER, env.NTFY_TOPIC);
+    await runExpiredWatchCleanup(env);
     await runCheck(env, ntfy);
     await runReminderChecks(env, ntfy);
   },

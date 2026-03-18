@@ -131,6 +131,28 @@ export async function markReminderNotified(
     .run();
 }
 
+/**
+ * Deletes watches whose end_date is in the past, along with their snapshots.
+ * Returns the number of watches deleted.
+ */
+export async function deleteExpiredWatches(db: D1Database): Promise<number> {
+  const expired = await db
+    .prepare("SELECT id FROM watches WHERE active = 1 AND end_date < date('now')")
+    .all<{ id: number }>();
+
+  if (expired.results.length === 0) return 0;
+
+  const ids = expired.results.map((r) => r.id);
+  const placeholders = ids.map(() => "?").join(", ");
+
+  await db.batch([
+    db.prepare(`DELETE FROM availability_snapshots WHERE watch_id IN (${placeholders})`).bind(...ids),
+    db.prepare(`DELETE FROM watches WHERE id IN (${placeholders})`).bind(...ids),
+  ]);
+
+  return ids.length;
+}
+
 export async function logNotification(db: D1Database, entry: NotificationLogEntry): Promise<void> {
   await db
     .prepare(

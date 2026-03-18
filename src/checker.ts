@@ -9,6 +9,7 @@ import {
   logNotification,
   getActiveReminders,
   markReminderNotified,
+  deleteExpiredWatches,
   type Watch,
 } from "./db/queries";
 
@@ -151,6 +152,13 @@ function buildReminderMessage(
     title: `Booking window opens ${label} — ${facility}`,
     body: `Window opens ${windowDateStr} at 7 AM Mountain Time for ${stay}.`,
   };
+}
+
+export async function runExpiredWatchCleanup(env: Env): Promise<void> {
+  const count = await deleteExpiredWatches(env.DB);
+  if (count > 0) {
+    console.log(`Cleaned up ${count} expired watch${count === 1 ? "" : "es"}`);
+  }
 }
 
 export async function runReminderChecks(env: Env, notifier: NotificationChannel): Promise<void> {
