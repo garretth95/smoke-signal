@@ -39,7 +39,25 @@ export function renderUI(): string {
     .tag { display: inline-block; background: #e0f2fe; color: #0369a1; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.75rem; }
     #toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: #1e293b; color: #fff; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.875rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
     #toast.show { opacity: 1; }
-    @media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) {
+      body { padding: 0.75rem; }
+      .form-grid { grid-template-columns: 1fr; }
+      .status-bar { flex-wrap: wrap; gap: 0.5rem 1rem; }
+      table { border: none; background: transparent; }
+      table, tbody, tr, td { display: block; }
+      thead { display: none; }
+      tr { background: #fff; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 0.5rem; overflow: hidden; }
+      tr:hover td { background: transparent; }
+      td { border-top: 1px solid #f0f0f0; padding: 0.4rem 0.75rem; display: flex; gap: 0.5rem; align-items: baseline; }
+      td:first-child { border-top: none; }
+      td[data-label]::before { content: attr(data-label); font-size: 0.72rem; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.03em; min-width: 4rem; flex-shrink: 0; }
+      td[data-label="Facility"] { flex-direction: column; align-items: flex-start; padding-top: 0.6rem; }
+      td[data-label="Facility"]::before { margin-bottom: 0.1rem; }
+      td[data-label=""] { justify-content: flex-end; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+      td[data-label=""]::before { display: none; }
+      .btn { min-height: 2.25rem; padding: 0.45rem 0.875rem; font-size: 0.85rem; }
+      #toast { left: 0.75rem; right: 0.75rem; bottom: 0.75rem; }
+    }
     .ac-wrap { position: relative; }
     .ac-drop { position: absolute; z-index: 100; top: calc(100% + 2px); left: 0; right: 0; background: #fff; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 280px; overflow-y: auto; }
     .ac-item { padding: 0.45rem 0.75rem; cursor: pointer; display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.875rem; }
@@ -361,11 +379,11 @@ export function renderUI(): string {
           w.site_types ? JSON.parse(w.site_types).map(t => '<span class="tag">' + t + '</span>').join(' ') : '',
         ].filter(Boolean).join(' ') || '—';
         return \`<tr>
-          <td><strong>\${w.facility_name || w.facility_id}</strong><br><small style="color:#888">\${w.facility_id}</small></td>
-          <td>\${fmt(w.start_date)} – \${fmt(w.end_date)}</td>
-          <td>\${filters}</td>
-          <td>\${fmtAdded(w.created_at)}</td>
-          <td><button class="btn btn-danger" onclick="deleteWatch(\${w.id})">Remove</button></td>
+          <td data-label="Facility"><strong>\${w.facility_name || w.facility_id}</strong><small style="color:#888">\${w.facility_id}</small></td>
+          <td data-label="Dates">\${fmt(w.start_date)} – \${fmt(w.end_date)}</td>
+          <td data-label="Filters">\${filters}</td>
+          <td data-label="Added">\${fmtAdded(w.created_at)}</td>
+          <td data-label=""><button class="btn btn-danger" onclick="deleteWatch(\${w.id})">Remove</button></td>
         </tr>\`;
       }).join('');
     }
@@ -390,11 +408,11 @@ export function renderUI(): string {
           return \`<span class="tag" style="\${done ? 'opacity:0.4;text-decoration:line-through' : ''}">\${label}</span>\`;
         }).join(' ');
         return \`<tr>
-          <td><strong>\${r.facility_name || r.facility_id}</strong></td>
-          <td>\${fmt(r.target_date)} (\${r.nights}n)</td>
-          <td>\${windowFmt}</td>
-          <td>\${scheduleHtml}</td>
-          <td><button class="btn btn-danger" onclick="deleteReminder(\${r.id})">Remove</button></td>
+          <td data-label="Facility"><strong>\${r.facility_name || r.facility_id}</strong></td>
+          <td data-label="Stay">\${fmt(r.target_date)} (\${r.nights}n)</td>
+          <td data-label="Window">\${windowFmt}</td>
+          <td data-label="Alerts">\${scheduleHtml}</td>
+          <td data-label=""><button class="btn btn-danger" onclick="deleteReminder(\${r.id})">Remove</button></td>
         </tr>\`;
       }).join('');
     }
